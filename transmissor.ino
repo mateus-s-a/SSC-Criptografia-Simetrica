@@ -213,8 +213,124 @@ void MixColumns(uint8_t state[4][4]) {
 }
 
 /*
+ * ============================================================================
+ * PARTE 3: EXPANSÃO DE CHAVES E CIFRAGEM DE BLOCO (10 RODADAS)
+ * ============================================================================
+ * 
+ * 1. EXPANSÃO DE CHAVES (KeyExpansion):
+ * A chave mestre do AES-128 possui 128 bits (16 bytes).
+ * O algoritmo necessita de 11 subchaves de 16 bytes (uma para o Whitening inicial
+ * e uma para cada uma das 10 rodadas), totalizando 176 bytes (44 palavras de 32 bits).
+ * 
+ * Para calcular cada nova palavra W[i]:
+ * - As 4 primeiras palavras W[0..3] são a própria chave mestre.
+ * - Para i múltiplo de 4:
+ *     W[i] = W[i-4] ^ SubWord(RotWord(W[i-1])) ^ Rcon[i/4]
+ * - Para os demais i:
+ *     W[i] = W[i-4] ^ W[i-1]
+ * 
+ * Onde:
+ * - RotWord: rotaciona 1 byte à esquerda [B0, B1, B2, B3] -> [B1, B2, B3, B0]
+ * - SubWord: aplica a S-Box nos 4 bytes [S(B0), S(B1), S(B2), S(B3)]
+ * - Rcon: constante de rodada baseada em potências de x no corpo GF(2^8)
+ */
+
+const uint8_t RCON[10] PROGMEM = {
+    0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36
+};
+
+uint8_t get_rcon(uint8_t index) {
+    return pgm_read_byte(&RCON[index]);
+}
+
+void KeyExpansion(const uint8_t key[16], uint8_t round_keys[11][16]) {
+    // 1. As primeiras 4 palavras (16 bytes) são copiadas diretamente da chave mestre
+    for (uint8_t i = 0; i < 16; i++) {
+        round_keys[0][i] = key[i];
+    }
+
+    uint8_t temp[4];
+
+    // 2. Gera as palavras restantes (de 4 a 43)
+    for (uint8_t i = 4; i < 44; i++) {
+        uint8_t prev_rnd = (i - 1) / 4;
+        uint8_t prev_col = (i - 1) % 4;
+
+        temp[0] = round_keys[prev_rnd][prev_col * 4 + 0];
+        temp[1] = round_keys[prev_rnd][prev_col * 4 + 1];
+        temp[2] = round_keys[prev_rnd][prev_col * 4 + 2];
+        temp[3] = round_keys[prev_rnd][prev_col * 4 + 3];
+
+        if (i % 4 == 0) {
+            // RotWord: [temp[0], temp[1], temp[2], temp[3]] -> [temp[1], temp[2], temp[3], temp[0]]
+            uint8_t t0 = temp[0];
+            temp[0] = temp[1];
+            temp[1] = temp[2];
+            temp[2] = temp[3];
+            temp[3] = t0;
+
+            // SubWord: passa cada byte pela S-Box
+            temp[0] = get_sbox(temp[0]);
+            temp[1] = get_sbox(temp[1]);
+            temp[2] = get_sbox(temp[2]);
+            temp[3] = get_sbox(temp[3]);
+
+            // XOR do primeiro byte com Rcon da rodada correspondente
+            temp[0] ^= get_rcon((i / 4) - 1);
+        }
+
+        uint8_t cur_rnd = i / 4;
+        uint8_t cur_col = i % 4;
+        uint8_t old_rnd = (i - 4) / 4;
+        uint8_t old_col = (i - 4) % 4;
+
+        round_keys[cur_rnd][cur_col * 4 + 0] = round_keys[old_rnd][old_col * 4 + 0] ^ temp[0];
+        round_keys[cur_rnd][cur_col * 4 + 1] = round_keys[old_rnd][old_col * 4 + 1] ^ temp[1];
+        round_keys[cur_rnd][cur_col * 4 + 2] = round_keys[old_rnd][old_col * 4 + 2] ^ temp[2];
+        round_keys[cur_rnd][cur_col * 4 + 3] = round_keys[old_rnd][old_col * 4 + 3] ^ temp[3];
+    }
+}
+
+/*
+ * 2. CIFRAGEM DE UM BLOCO DE 16 BYTES (aes128_encrypt_block):
+ * Executa as 10 rodadas completas do padrão AES-128:
+ * - Rodada 0 (Whitening Inicial): apenas AddRoundKey com a chave de rodada 0.
+ * - Rodadas 1 a 9 (Rodadas Padrão):
+ *     SubBytes -> ShiftRows -> MixColumns -> AddRoundKey
+ * - Rodada 10 (Rodada Final):
+ *     SubBytes -> ShiftRows -> AddRoundKey (NÃO possui MixColumns!)
+ * 
+ * Por que a Rodada 10 não tem MixColumns?
+ * Para que a estrutura de decifragem seja simétrica e invertível sem exigir uma
+ * transformação extra no início do processo de decriptação.
+ */
+void aes128_encrypt_block(const uint8_t plaintext[16], const uint8_t round_keys[11][16], uint8_t ciphertext[16]) {
+    uint8_t state[4][4];
+    bytes_to_state(plaintext, state);
+
+    // Rodada 0: Whitening inicial
+    AddRoundKey(state, round_keys[0]);
+
+    // Rodadas 1 a 9
+    for (uint8_t rnd = 1; rnd < 10; rnd++) {
+        SubBytes(state);
+        ShiftRows(state);
+        MixColumns(state);
+        AddRoundKey(state, round_keys[rnd]);
+    }
+
+    // Rodada 10: Final (sem MixColumns)
+    SubBytes(state);
+    ShiftRows(state);
+    AddRoundKey(state, round_keys[10]);
+
+    // Converte a matriz de estado de volta para o vetor linear de saída
+    state_to_bytes(state, ciphertext);
+}
+
+/*
  * ----------------------------------------------------------------------------
- * ROTINAS DE AUTOTESTE E VALIDAÇÃO (PARTES 1 E 2)
+ * ROTINAS DE AUTOTESTE E VALIDAÇÃO (PARTES 1, 2 E 3)
  * ----------------------------------------------------------------------------
  */
 
@@ -350,6 +466,92 @@ void test_part2() {
     Serial.println(F("==================================================\n"));
 }
 
+void test_part3() {
+    Serial.println(F("\n=================================================="));
+    Serial.println(F("     VALIDAÇÃO DA PARTE 3 - VETORES NIST FIPS-197 "));
+    Serial.println(F("=================================================="));
+
+    // -------------------------------------------------------------
+    // Teste 3.1: NIST FIPS-197 Apêndice B
+    // -------------------------------------------------------------
+    const uint8_t key_b[16] = {
+        0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
+        0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c
+    };
+    const uint8_t plain_b[16] = {
+        0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d,
+        0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34
+    };
+    const uint8_t exp_cipher_b[16] = {
+        0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb,
+        0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a, 0x0b, 0x32
+    };
+
+    uint8_t round_keys_b[11][16];
+    KeyExpansion(key_b, round_keys_b);
+
+    uint8_t out_cipher_b[16];
+    aes128_encrypt_block(plain_b, round_keys_b, out_cipher_b);
+
+    Serial.println(F("[-] Teste 3.1: FIPS-197 Apêndice B:"));
+    Serial.print(F("    Chave (Hex):        "));
+    print_hex_buffer(key_b, 16);
+    Serial.print(F("    Texto Claro:        "));
+    print_hex_buffer(plain_b, 16);
+    Serial.print(F("    Cifrado Obtido:     "));
+    print_hex_buffer(out_cipher_b, 16);
+    Serial.print(F("    Cifrado Esperado:   "));
+    print_hex_buffer(exp_cipher_b, 16);
+
+    bool ok_b = (memcmp(out_cipher_b, exp_cipher_b, 16) == 0);
+    Serial.print(F("    Resultado Apêndice B: "));
+    Serial.println(ok_b ? F("PASSOU! [OK]") : F("FALHOU! [ERRO]"));
+
+    // -------------------------------------------------------------
+    // Teste 3.2: NIST FIPS-197 Apêndice C.1
+    // -------------------------------------------------------------
+    const uint8_t key_c[16] = {
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+        0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+    };
+    const uint8_t plain_c[16] = {
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+        0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff
+    };
+    const uint8_t exp_cipher_c[16] = {
+        0x69, 0xc4, 0xe0, 0xd8, 0x6a, 0x7b, 0x04, 0x30,
+        0xd8, 0xcd, 0xb7, 0x80, 0x70, 0xb4, 0xc5, 0x5a
+    };
+
+    uint8_t round_keys_c[11][16];
+    KeyExpansion(key_c, round_keys_c);
+
+    uint8_t out_cipher_c[16];
+    aes128_encrypt_block(plain_c, round_keys_c, out_cipher_c);
+
+    Serial.println(F("\n[-] Teste 3.2: FIPS-197 Apêndice C.1:"));
+    Serial.print(F("    Chave (Hex):        "));
+    print_hex_buffer(key_c, 16);
+    Serial.print(F("    Texto Claro:        "));
+    print_hex_buffer(plain_c, 16);
+    Serial.print(F("    Cifrado Obtido:     "));
+    print_hex_buffer(out_cipher_c, 16);
+    Serial.print(F("    Cifrado Esperado:   "));
+    print_hex_buffer(exp_cipher_c, 16);
+
+    bool ok_c = (memcmp(out_cipher_c, exp_cipher_c, 16) == 0);
+    Serial.print(F("    Resultado Apêndice C.1: "));
+    Serial.println(ok_c ? F("PASSOU! [OK]") : F("FALHOU! [ERRO]"));
+
+    if (ok_b && ok_c) {
+        Serial.println(F("\n>>> PARTE 3 VALIDADA COM 100% DE SUCESSO! <<<"));
+        Serial.println(F("O motor AES-128 em C está em total conformidade com o FIPS-197!"));
+    } else {
+        Serial.println(F("\n>>> ATENÇÃO: HOUVE DIVERGÊNCIA NA PARTE 3! <<<"));
+    }
+    Serial.println(F("==================================================\n"));
+}
+
 void setup() {
     // 1. Inicializa Monitor Serial USB para depuração e conferência
     Serial.begin(115200);
@@ -358,9 +560,10 @@ void setup() {
     Serial.println(F("Firmware do Transmissor (TX) - AES-128 ESP32"));
     Serial.println(F("Autor: Mateus | Parceira: Lorena | IFMT - SSC"));
 
-    // Executa as validações das Partes 1 e 2 no boot
+    // Executa as validações das Partes 1, 2 e 3 no boot
     test_part1();
     test_part2();
+    test_part3();
 
     // TODO (Parte 5): Inicialização da UART2 física (115200 bps, 8N1)
 }
