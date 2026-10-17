@@ -3,16 +3,16 @@
  * PROJETO: AES-128 em Dois ESP32 via UART
  * DISCIPLINA: Segurança de Sistemas de Computação - IFMT
  * 
- * MÓDULO: Transmissor (TX) - Placa A
- * RESPONSÁVEL: Mateus (Aluno A)
+ * MÓDULO: Transmissor (TX) - Placa A (Hardware)
+ * RESPONSÁVEL PELA CODIFICAÇÃO: Mateus (Aluno B)
+ * DUPLA E MATRÍCULAS:
+ * - Aluno A: Lorena  (2023278440028) -> 8 dígitos finais: 78440028
+ * - Aluno B: Mateus  (2023278440030) -> 8 dígitos finais: 78440030
  * 
- * DESCRIÇÃO:
- * - Derivação da chave de 16 bytes a partir das matrículas de Mateus e Lorena.
- * - Formatação da mensagem base "A:<matrícula A>;B:<matrícula B>".
- * - Aplicação de preenchimento PKCS#7.
- * - Implementação do AES-128 (SubBytes, ShiftRows, MixColumns, AddRoundKey, KeyExpansion).
- * - Cifragem dos blocos de 16 bytes em modo ECB.
- * - Transmissão do quadro binário bruto [0xAA, n, blocos_cifrados] via UART2 (115200 bps, 8N1).
+ * DADOS CRIPTOGRÁFICOS DERIVADOS:
+ * - Chave (16 bytes): "7844002878440030"
+ * - Mensagem (31 bytes): "A:2023278440028;B:2023278440030"
+ * - PKCS#7: acrescenta 1 byte (0x01) totalizando 32 bytes (2 blocos de 16 bytes)
  * ============================================================================
  */
 

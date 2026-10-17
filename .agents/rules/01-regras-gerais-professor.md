@@ -2,9 +2,9 @@
 
 ## Metadados do Trabalho
 - **Disciplina**: Segurança de Sistemas de Computação — Criptografia Simétrica
-- **Dupla**: 
-  - **Mateus (Aluno A)**: Responsável pela codificação do Transmissor (TX / Placa A).
-  - **Lorena (Aluno B)**: Responsável pela codificação do Receptor (RX / Placa B).
+- **Dupla e Matrículas**:
+  - **Aluno A**: Lorena — Matrícula: `2023278440028` (Responsável pela codificação do Receptor RX / Placa B)
+  - **Aluno B**: Mateus — Matrícula: `2023278440030` (Responsável pela codificação do Transmissor TX / Placa A)
   - **Relatório**: Elaboração e formato final em processo de definição pela dupla.
 - **Data e Horário Limite de Entrega**: **19/10 até às 23h59**
 - **Documento Base**: `utils/Trabalho_AES-128_ESP32.pdf`

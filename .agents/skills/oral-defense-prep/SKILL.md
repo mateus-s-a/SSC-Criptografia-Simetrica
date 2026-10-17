@@ -22,7 +22,7 @@ Esta habilidade estrutura a preparação técnica da dupla Mateus e Lorena para 
    - Ambos devem conhecer integralmente cada função primitiva do AES (`SubBytes`, `ShiftRows`, `MixColumns`, `AddRoundKey`, `KeyExpansion`).
 3. **Desafio ao Vivo (Live Modification)**:
    - Na hora da avaliação, o professor pedirá uma modificação imediata (ex: cifrar uma mensagem customizada ou inverter um bit na chave).
-   - A dupla deverá alterar o código/parâmetro, recompilar/gravar ou reexecutar, e apresentar o resultado que o professor confrontará contra sua implementação de referência.
+   - A dupla possui o trunfo de poder responder instantaneamente pelo **Console Interativo USB do `transmissor.ino`** (basta digitar a nova mensagem ditada pelo professor no Monitor Serial, ou usar `/flip` para inverter 1 bit da chave), bem como saber alterar diretamente as variáveis do código-fonte e recompilar/gravar se solicitado.
 4. **Defesa Conceitual**:
    - Explicar a origem matemática da S-Box ($GF(2^8)$ e transformação afim).
    - Explicar o que é e como funciona o `xtime`.

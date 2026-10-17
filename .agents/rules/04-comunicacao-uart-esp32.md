@@ -26,7 +26,24 @@
 
 ---
 
-## 3. Máquina de Estados e Recepção na Placa B
+## 3. Console Interativo USB no Transmissor (Placa A)
+- **Porta USB Serial (`Serial`)**: Opera a 115200 bps.
+- **Funcionamento**:
+  - No boot (`setup()`): transmite imediatamente o pacote oficial da dupla.
+  - No `loop()`: escuta strings enviadas via teclado no Monitor Serial.
+  - Ao receber qualquer nova linha:
+    1. Calcula o preenchimento PKCS#7 dinâmico para a nova string.
+    2. Cifra em blocos AES-128 ECB.
+    3. Monta e transmite o quadro binário via `Serial2.write`.
+    4. Imprime no Monitor Serial local o dump hexadecimal dos blocos para conferência.
+  - Comandos de controle suportados:
+    - `/flip`: inverte 1 bit na chave simétrica atual (`key[0] ^= 0x01`) e reenvia.
+    - `/key <nova_chave>`: carrega uma nova chave de 16 bytes.
+    - `/reset`: restaura a chave original da dupla.
+
+---
+
+## 4. Máquina de Estados e Recepção na Placa B
 1. **Sincronização**: O receptor lê continuamente a UART2 até detectar o marcador `0xAA`.
 2. **Leitura do Cabeçalho**: Lê o byte seguinte representando $n$ (número de blocos).
 3. **Leitura dos Dados com Timeout**:

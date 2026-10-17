@@ -49,8 +49,8 @@ def analyze(mat_a, mat_b):
     print("=" * 70)
     print("       RELATÓRIO DE ANÁLISE CRIPTOGRÁFICA - ETAPA 3 (AES-128)")
     print("=" * 70)
-    print(f"Aluno A (Mateus):   {mat_a}")
-    print(f"Aluno B (Lorena):   {mat_b}\n")
+    print(f"Aluno A (Lorena):   {mat_a}")
+    print(f"Aluno B (Mateus):   {mat_b}\n")
 
     # 1. Chave
     key_ascii, key_bytes = derive_key(mat_a, mat_b)
@@ -156,7 +156,7 @@ def analyze(mat_a, mat_b):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gerador de Análise Criptográfica da Etapa 3")
-    parser.add_argument("--mat-a", default="20231001", help="Matrícula do Aluno A (Mateus)")
-    parser.add_argument("--mat-b", default="20231002", help="Matrícula do Aluno B (Lorena)")
+    parser.add_argument("--mat-a", default="2023278440028", help="Matrícula da Aluna A (Lorena)")
+    parser.add_argument("--mat-b", default="2023278440030", help="Matrícula do Aluno B (Mateus)")
     args = parser.parse_args()
     analyze(args.mat_a, args.mat_b)

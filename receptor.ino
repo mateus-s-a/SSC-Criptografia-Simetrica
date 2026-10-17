@@ -3,16 +3,17 @@
  * PROJETO: AES-128 em Dois ESP32 via UART
  * DISCIPLINA: Segurança de Sistemas de Computação - IFMT
  * 
- * MÓDULO: Receptor (RX) - Placa B
- * RESPONSÁVEL: Lorena (Aluno B)
+ * MÓDULO: Receptor (RX) - Placa B (Hardware)
+ * RESPONSÁVEL PELA CODIFICAÇÃO: Lorena (Aluno A)
+ * DUPLA E MATRÍCULAS:
+ * - Aluno A: Lorena  (2023278440028) -> 8 dígitos finais: 78440028
+ * - Aluno B: Mateus  (2023278440030) -> 8 dígitos finais: 78440030
  * 
- * DESCRIÇÃO:
- * - Sincronização no byte de início fixo 0xAA via UART2 (115200 bps, 8N1).
- * - Leitura segura da quantidade de blocos (n) e da carga útil com timeout.
- * - Implementação do AES-128 Inverso (InvSubBytes, InvShiftRows, InvMixColumns, AddRoundKey, KeyExpansion).
- * - Decifragem de cada bloco de 16 bytes em modo ECB.
- * - Validação e descarte do preenchimento PKCS#7.
- * - Exibição da mensagem decifrada em texto claro no Monitor Serial USB.
+ * DADOS CRIPTOGRÁFICOS DERIVADOS:
+ * - Chave (16 bytes): "7844002878440030"
+ * - Espera receber quadro [0xAA, 0x02, 32 bytes cifrados] via UART2
+ * - Decifrar em AES-128 ECB, remover PKCS#7 (1 byte 0x01) e imprimir:
+ *   "A:2023278440028;B:2023278440030"
  * ============================================================================
  */
 
