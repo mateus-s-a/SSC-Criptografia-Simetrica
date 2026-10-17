@@ -21,9 +21,9 @@
 #include <stddef.h>
 
 /*
- * ----------------------------------------------------------------------------
+ * ============================================================================
  * PARTE 1: FUNDAÇÕES MATEMÁTICAS, TABELAS E ARITMÉTICA EM GF(2^8)
- * ----------------------------------------------------------------------------
+ * ============================================================================
  * 
  * 1. FUNDAMENTAÇÃO MATEMÁTICA DA S-BOX (Exigência do Professor):
  * A S-Box é a única transformação não-linear do AES (responsável pela "Confusão").
@@ -117,17 +117,121 @@ void state_to_bytes(const uint8_t state[4][4], uint8_t output[16]) {
 }
 
 /*
+ * ============================================================================
+ * PARTE 2: PRIMITIVAS CRIPTOGRÁFICAS DE RODADA (O MOTOR DE TRANSFORMAÇÃO)
+ * ============================================================================
+ * 
+ * Uma rodada padrão do AES (rodadas 1 a 9) aplica sequencialmente 4 operações:
+ * 1. SubBytes    (Confusão não-linear via S-Box)
+ * 2. ShiftRows   (Difusão posicional entre colunas)
+ * 3. MixColumns  (Difusão matemática dentro de cada coluna no corpo GF(2^8))
+ * 4. AddRoundKey (Introdução da subchave secreta da rodada via XOR)
+ */
+
+/*
+ * 1. AddRoundKey:
+ * Realiza um XOR bit a bit entre cada byte da matriz de estado e a subchave da rodada.
+ * É uma operação auto-inversa: aplicar AddRoundKey duas vezes com a mesma chave restaura o valor.
+ */
+void AddRoundKey(uint8_t state[4][4], const uint8_t roundKey[16]) {
+    for (uint8_t col = 0; col < 4; col++) {
+        for (uint8_t row = 0; row < 4; row++) {
+            state[row][col] ^= roundKey[row + 4 * col];
+        }
+    }
+}
+
+/*
+ * 2. SubBytes:
+ * Substitui cada byte do estado pelo valor correspondente na S-Box.
+ * state[r][c] = SBOX[ state[r][c] ]
+ */
+void SubBytes(uint8_t state[4][4]) {
+    for (uint8_t col = 0; col < 4; col++) {
+        for (uint8_t row = 0; row < 4; row++) {
+            state[row][col] = get_sbox(state[row][col]);
+        }
+    }
+}
+
+/*
+ * 3. ShiftRows:
+ * Desloca ciclicamente as linhas da matriz de estado para a esquerda:
+ * - Linha 0: sem deslocamento
+ * - Linha 1: desloca 1 byte à esquerda:  [s10, s11, s12, s13] -> [s11, s12, s13, s10]
+ * - Linha 2: desloca 2 bytes à esquerda: [s20, s21, s22, s23] -> [s22, s23, s20, s21]
+ * - Linha 3: desloca 3 bytes à esquerda: [s30, s31, s32, s33] -> [s33, s30, s31, s32]
+ */
+void ShiftRows(uint8_t state[4][4]) {
+    // Linha 1: rotação de 1 byte à esquerda
+    uint8_t temp1 = state[1][0];
+    state[1][0] = state[1][1];
+    state[1][1] = state[1][2];
+    state[1][2] = state[1][3];
+    state[1][3] = temp1;
+
+    // Linha 2: rotação de 2 bytes à esquerda (troca cruzada)
+    uint8_t temp2_0 = state[2][0];
+    uint8_t temp2_1 = state[2][1];
+    state[2][0] = state[2][2];
+    state[2][1] = state[2][3];
+    state[2][2] = temp2_0;
+    state[2][3] = temp2_1;
+
+    // Linha 3: rotação de 3 bytes à esquerda (equivale a 1 à direita)
+    uint8_t temp3 = state[3][3];
+    state[3][3] = state[3][2];
+    state[3][2] = state[3][1];
+    state[3][1] = state[3][0];
+    state[3][0] = temp3;
+}
+
+/*
+ * 4. MixColumns:
+ * Opera em cada coluna da matriz de estado independentemente.
+ * Trata cada coluna como um polinômio de quatro termos sobre GF(2^8) e multiplica
+ * módulo (x^4 + 1) pela matriz constante:
+ *   [ 02  03  01  01 ]
+ *   [ 01  02  03  01 ]
+ *   [ 01  01  02  03 ]
+ *   [ 03  01  01  02 ]
+ * 
+ * Notar que: {03} * s = ({02} ^ {01}) * s = xtime(s) ^ s.
+ */
+void MixColumns(uint8_t state[4][4]) {
+    for (uint8_t col = 0; col < 4; col++) {
+        uint8_t s0 = state[0][col];
+        uint8_t s1 = state[1][col];
+        uint8_t s2 = state[2][col];
+        uint8_t s3 = state[3][col];
+
+        state[0][col] = xtime(s0) ^ (xtime(s1) ^ s1) ^ s2 ^ s3;
+        state[1][col] = s0 ^ xtime(s1) ^ (xtime(s2) ^ s2) ^ s3;
+        state[2][col] = s0 ^ s1 ^ xtime(s2) ^ (xtime(s3) ^ s3);
+        state[3][col] = (xtime(s0) ^ s0) ^ s1 ^ s2 ^ xtime(s3);
+    }
+}
+
+/*
  * ----------------------------------------------------------------------------
- * ROTINA DE AUTOTESTE E VALIDAÇÃO DA PARTE 1
+ * ROTINAS DE AUTOTESTE E VALIDAÇÃO (PARTES 1 E 2)
  * ----------------------------------------------------------------------------
  */
+
+void print_hex_buffer(const uint8_t *buf, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        if (buf[i] < 0x10) Serial.print(F("0"));
+        Serial.print(buf[i], HEX);
+    }
+    Serial.println();
+}
+
 void test_part1() {
     Serial.println(F("\n=================================================="));
     Serial.println(F("     VALIDAÇÃO DA PARTE 1 - MATEMÁTICA & S-BOX     "));
     Serial.println(F("=================================================="));
 
     // Teste 1: Aritmética de xtime (Exemplos oficiais da Seção 4.2.1 do FIPS-197)
-    // Exemplo FIPS: {57} * {02} = {ae}
     uint8_t t1 = xtime(0x57);
     bool ok1 = (t1 == 0xAE);
     Serial.print(F("[Teste 1.1] xtime(0x57) -> Esperado: 0xAE | Obtido: 0x"));
@@ -135,7 +239,6 @@ void test_part1() {
     Serial.print(t1, HEX);
     Serial.println(ok1 ? F(" [OK]") : F(" [FALHOU]"));
 
-    // Exemplo FIPS: {ae} * {02} = {47} (pois bit 7 = 1 -> (0xae << 1) ^ 0x1b = 0x5c ^ 0x1b = 0x47)
     uint8_t t2 = xtime(0xAE);
     bool ok2 = (t2 == 0x47);
     Serial.print(F("[Teste 1.2] xtime(0xAE) -> Esperado: 0x47 | Obtido: 0x"));
@@ -143,11 +246,11 @@ void test_part1() {
     Serial.print(t2, HEX);
     Serial.println(ok2 ? F(" [OK]") : F(" [FALHOU]"));
 
-    // Teste 2: Conferência da S-Box (Pontos-chave do FIPS-197)
-    uint8_t s_00 = get_sbox(0x00); // 0x63 (vetor afim)
-    uint8_t s_53 = get_sbox(0x53); // 0xED
-    uint8_t s_a7 = get_sbox(0xA7); // 0x5C
-    uint8_t s_ff = get_sbox(0xFF); // 0x16
+    // Teste 2: Conferência da S-Box
+    uint8_t s_00 = get_sbox(0x00);
+    uint8_t s_53 = get_sbox(0x53);
+    uint8_t s_a7 = get_sbox(0xA7);
+    uint8_t s_ff = get_sbox(0xFF);
 
     bool ok_sbox = (s_00 == 0x63 && s_53 == 0xED && s_a7 == 0x5C && s_ff == 0x16);
     Serial.print(F("[Teste 1.3] Leitura S-Box (0x00, 0x53, 0xA7, 0xFF) -> "));
@@ -164,16 +267,85 @@ void test_part1() {
     for (int i = 0; i < 16; i++) {
         if (roundtrip_bytes[i] != test_bytes[i]) ok_matrix = false;
     }
-    // Confere se Coluna 1, Linha 0 é o byte 4
     if (test_state[0][1] != 4 || test_state[3][0] != 3) ok_matrix = false;
 
     Serial.print(F("[Teste 1.4] Mapeamento Matriz 4x4 (Column-Major) -> "));
     Serial.println(ok_matrix ? F("Perfeito! [OK]") : F("Erro de indexação! [FALHOU]"));
 
     if (ok1 && ok2 && ok_sbox && ok_matrix) {
-        Serial.println(F("\n>>> PARTE 1 VALIDADA COM 100% DE SUCESSO! <<<"));
+        Serial.println(F(">>> PARTE 1 VALIDADA COM SUCESSO! <<<"));
     } else {
-        Serial.println(F("\n>>> ATENÇÃO: HOUVE FALHA NA PARTE 1! <<<"));
+        Serial.println(F(">>> ATENÇÃO: HOUVE FALHA NA PARTE 1! <<<"));
+    }
+}
+
+void test_part2() {
+    Serial.println(F("\n=================================================="));
+    Serial.println(F("     VALIDAÇÃO DA PARTE 2 - 5 ESTADOS DA RODADA 1 "));
+    Serial.println(F("=================================================="));
+
+    // Dados reais da dupla:
+    // Bloco 1 Claro: "A:2023278440028;" (16 bytes)
+    const uint8_t b1[16] = {0x41, 0x3a, 0x32, 0x30, 0x32, 0x33, 0x32, 0x37, 0x38, 0x34, 0x34, 0x30, 0x30, 0x32, 0x38, 0x3b};
+    // Chave de Rodada 0: "7844002878440030"
+    const uint8_t k0[16] = {0x37, 0x38, 0x34, 0x34, 0x30, 0x30, 0x32, 0x38, 0x37, 0x38, 0x34, 0x34, 0x30, 0x30, 0x33, 0x30};
+    // Chave de Rodada 1 da expansão da dupla
+    const uint8_t k1[16] = {0x32, 0xfb, 0x30, 0x30, 0x02, 0xcb, 0x02, 0x08, 0x35, 0xf3, 0x36, 0x3c, 0x05, 0xc3, 0x05, 0x0c};
+
+    uint8_t state[4][4];
+    uint8_t buffer[16];
+
+    // Estado 0: Entrada
+    bytes_to_state(b1, state);
+    state_to_bytes(state, buffer);
+    Serial.print(F("Estado 0 (Entrada Bloco 1):              "));
+    print_hex_buffer(buffer, 16);
+
+    // Fase 1: AddRoundKey inicial (Chave 0)
+    AddRoundKey(state, k0);
+    state_to_bytes(state, buffer);
+    Serial.print(F("(1) Apos AddRoundKey Inicial (Chave 0):  "));
+    print_hex_buffer(buffer, 16);
+    // Esperado: 760206040203000f0f0c000400020b0b
+    bool ok_s1 = (buffer[0] == 0x76 && buffer[15] == 0x0B);
+
+    // Fase 2: SubBytes
+    SubBytes(state);
+    state_to_bytes(state, buffer);
+    Serial.print(F("(2) Apos SubBytes:                       "));
+    print_hex_buffer(buffer, 16);
+    // Esperado: 38776ff2777b637676fe63f263772b2b
+    bool ok_s2 = (buffer[0] == 0x38 && buffer[15] == 0x2B);
+
+    // Fase 3: ShiftRows
+    ShiftRows(state);
+    state_to_bytes(state, buffer);
+    Serial.print(F("(3) Apos ShiftRows:                      "));
+    print_hex_buffer(buffer, 16);
+    // Esperado: 387b632b77fe2bf276776f76637763f2
+    bool ok_s3 = (buffer[0] == 0x38 && buffer[15] == 0xF2);
+
+    // Fase 4: MixColumns
+    MixColumns(state);
+    state_to_bytes(state, buffer);
+    Serial.print(F("(4) Apos MixColumns:                     "));
+    print_hex_buffer(buffer, 16);
+    // Esperado: b540f8062e1fd2b36c5f456ecedadf4e
+    bool ok_s4 = (buffer[0] == 0xB5 && buffer[15] == 0x4E);
+
+    // Fase 5: AddRoundKey (Chave 1)
+    AddRoundKey(state, k1);
+    state_to_bytes(state, buffer);
+    Serial.print(F("(5) Apos AddRoundKey (Chave 1):          "));
+    print_hex_buffer(buffer, 16);
+    // Esperado: 87bbc8362cd4d0bb59ac7352cb19da42
+    bool ok_s5 = (buffer[0] == 0x87 && buffer[15] == 0x42);
+
+    if (ok_s1 && ok_s2 && ok_s3 && ok_s4 && ok_s5) {
+        Serial.println(F("\n>>> PARTE 2 VALIDADA COM 100% DE SUCESSO! <<<"));
+        Serial.println(F("Todos os 5 estados da Rodada 1 conferem com o gabarito!"));
+    } else {
+        Serial.println(F("\n>>> ATENÇÃO: HOUVE DIVERGÊNCIA NA PARTE 2! <<<"));
     }
     Serial.println(F("==================================================\n"));
 }
@@ -186,8 +358,9 @@ void setup() {
     Serial.println(F("Firmware do Transmissor (TX) - AES-128 ESP32"));
     Serial.println(F("Autor: Mateus | Parceira: Lorena | IFMT - SSC"));
 
-    // Executa a validação da Parte 1 no boot
+    // Executa as validações das Partes 1 e 2 no boot
     test_part1();
+    test_part2();
 
     // TODO (Parte 5): Inicialização da UART2 física (115200 bps, 8N1)
 }
