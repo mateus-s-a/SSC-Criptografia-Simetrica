@@ -22,7 +22,7 @@
  * O receptor valida e decifra qualquer uma das opções perfeitamente em tempo de execução.
  * 
  * ESPECIFICAÇÃO DE HARDWARE E COMUNICAÇÃO:
- * - Microcontrolador: ESP32 DevKit V1
+ * - Microcontrolador: ESP32 
  * - UART2 nos pinos: RX = GPIO 16 (recebe do TX) e TX = GPIO 17
  * - Velocidade: 115200 bps, 8N1
  * - Formato do quadro binário bruto: [0xAA, n_blocos, carga_cifrada (n * 16 bytes)]
@@ -43,7 +43,7 @@
 // Marcador fixo de início de quadro de transmissão
 #define BYTE_SINCRONISMO 0xAA
 
-// Chave da dupla: 8 dígitos da Lorena (78440028) + 8 dígitos do Mateus (78440030)
+// Chave da dupla: 8 dígitos Lorena (78440028) + 8 dígitos Mateus (78440030)
 const uint8_t CHAVE_AES[16] = {
     '7', '8', '4', '4', '0', '0', '2', '8',
     '7', '8', '4', '4', '0', '0', '3', '0'
