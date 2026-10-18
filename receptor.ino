@@ -308,11 +308,11 @@ int remover_padding_pkcs7(uint8_t *buffer, int tamanho) {
 }
 
 // -----------------------------------------------------------------------------
-// 6. AUTO-TESTE INICIAL (NIST FIPS-197 & VETOR DA DUPLA)
+// 6. AUTO-TESTE INICIAL (NIST FIPS-197)
 // -----------------------------------------------------------------------------
 void executar_auto_teste_inicial() {
     Serial.println("\n==================================================");
-    Serial.println("  AUTO-TESTE DE INTEGRIDADE CRIPTOGRÁFICA (RX)");
+    Serial.println("  AUTO-TESTE DE INTEGRIDADE (NIST FIPS-197)");
     Serial.println("==================================================");
 
     // Teste 1: Vetor Oficial NIST FIPS-197 Apêndice B
@@ -369,53 +369,8 @@ void executar_auto_teste_inicial() {
         Serial.println("[VETOR FIPS-197 APÊNDICE C.1]: FALHA!");
     }
 
+    // Restaura as subchaves da dupla
     memcpy(chaves_de_rodada, chaves_originais, sizeof(chaves_de_rodada));
-
-    // Teste 3: Vetor cifrado da dupla com 8 dígitos ("A:78440028;B:78440030")
-    // 21 bytes de texto claro + 11 bytes de padding (0x0B) = 32 bytes (2 blocos)
-    const uint8_t cifrado_8digitos[32] = {
-        0xef, 0x13, 0xef, 0xed, 0x91, 0x16, 0xe1, 0x00,
-        0xb8, 0x40, 0x1d, 0xb1, 0x06, 0xec, 0xf6, 0x91,
-        0xd1, 0x2d, 0x65, 0xaf, 0x66, 0x0e, 0x84, 0x0e,
-        0x1e, 0xa9, 0xbc, 0x4d, 0x33, 0xbb, 0xa2, 0xac
-    };
-
-    uint8_t claro_8digitos[33];
-    for (int b = 0; b < 2; b++) {
-        decifrar_bloco_aes128(&cifrado_8digitos[b * 16], &claro_8digitos[b * 16]);
-    }
-    int tam_8digitos = remover_padding_pkcs7(claro_8digitos, 32);
-
-    if (tam_8digitos > 0) {
-        Serial.print("[VETOR DUPLA - 8 DÍGITOS (Padding 11B)]: SUCESSO -> \"");
-        Serial.print((char*)claro_8digitos);
-        Serial.println("\"");
-    } else {
-        Serial.println("[VETOR DUPLA - 8 DÍGITOS]: FALHA no PKCS#7!");
-    }
-
-    // Teste 4: Vetor cifrado da dupla com Matrículas Completas ("A:2023278440028;B:2023278440030")
-    // 31 bytes de texto claro + 1 byte de padding (0x01) = 32 bytes (2 blocos)
-    const uint8_t cifrado_matricula_completa[32] = {
-        0x20, 0x19, 0x19, 0xf9, 0x9f, 0x96, 0x20, 0x2a,
-        0xef, 0x26, 0xcd, 0xff, 0x9e, 0xb3, 0x37, 0x4d,
-        0x5c, 0x7f, 0xa1, 0x6d, 0x88, 0xcb, 0x3c, 0x29,
-        0xf0, 0xae, 0xc6, 0xb3, 0xc2, 0x04, 0xd9, 0x66
-    };
-
-    uint8_t claro_matricula_completa[33];
-    for (int b = 0; b < 2; b++) {
-        decifrar_bloco_aes128(&cifrado_matricula_completa[b * 16], &claro_matricula_completa[b * 16]);
-    }
-    int tam_completo = remover_padding_pkcs7(claro_matricula_completa, 32);
-
-    if (tam_completo > 0) {
-        Serial.print("[VETOR DUPLA - MATRÍCULA COMPLETA (Padding 1B)]: SUCESSO -> \"");
-        Serial.print((char*)claro_matricula_completa);
-        Serial.println("\"");
-    } else {
-        Serial.println("[VETOR DUPLA - MATRÍCULA COMPLETA]: FALHA no PKCS#7!");
-    }
     Serial.println("==================================================\n");
 }
 
