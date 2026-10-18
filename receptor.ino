@@ -382,7 +382,7 @@ void setup() {
     Serial.begin(115200);
     delay(1000);
 
-    Serial.println("\n[SISTEMA INICIADO] Receptor B (Lorena) - AES-128 ECB");
+    Serial.println("\n[SISTEMA INICIADO] Receptor B - AES-128 ECB");
     Serial.printf("[HARDWARE] UART2 no pino RX=%d a %d bps\n", PINO_RXD2, VELOCIDADE_UART);
 
     // Inicialização da UART2 nos pinos RX=16 e TX=17
@@ -397,7 +397,7 @@ void setup() {
     // Executa a bateria de auto-testes iniciais (FIPS-197 Apêndices B, C.1 e vetor da dupla)
     executar_auto_teste_inicial();
 
-    Serial.println("[AGUARDANDO PACOTES NA UART2] Pronto para receber transmissões do Mateus...\n");
+    Serial.println("[AGUARDANDO PACOTES NA UART2] Pronto para receber transmissões...\n");
 }
 
 // -----------------------------------------------------------------------------
