@@ -19,21 +19,21 @@ O objetivo central é implementar o algoritmo **AES-128 (Advanced Encryption Sta
 
 | Integrante | Matrícula | 8 Dígitos Finais | Papel Primário no Projeto | Firmware Principal |
 | :--- | :---: | :---: | :--- | :--- |
-| **Lorena Strobel** | `2023278440028` | `78440028` | Aluno A (Desenvolvimento do Receptor) | [`receptor/receptor.ino`](file:///home/spacery/Documents/[CodeRoot]/IFMT/Segurança-Sistemas-Computacionais/SSC-Criptografia-Simetrica/receptor/receptor.ino) |
-| **Mateus de Souza** | `2023278440030` | `78440030` | Aluno B (Desenvolvimento do Transmissor) | [`transmissor/transmissor.ino`](file:///home/spacery/Documents/[CodeRoot]/IFMT/Segurança-Sistemas-Computacionais/SSC-Criptografia-Simetrica/transmissor/transmissor.ino) |
+| **Lorena Strobel** | `2023278440028` | `78440028` | Aluno A (Desenvolvimento do Receptor) | `receptor/receptor.ino` |
+| **Mateus de Souza** | `2023278440030` | `78440030` | Aluno B (Desenvolvimento do Transmissor) | `transmissor/transmissor.ino` |
 
 ### Parâmetros Criptográficos Derivados:
 * **Chave Simétrica Mestre (128 bits / 16 bytes ASCII)**:  
   Composta pela concatenação dos 8 dígitos finais de Lorena (Aluno A) e Mateus (Aluno B):  
-  $$\text{Chave} = \text{"7844002878440030"}$$  
+  $\text{Chave} = \text{"7844002878440030"}$  
   Em hexadecimal: `0x37 0x38 0x34 0x34 0x30 0x30 0x32 0x38 0x37 0x38 0x34 0x34 0x30 0x30 0x33 0x30`
 
 * **Mensagem em Texto Claro da Dupla (31 bytes ASCII)**:  
-  $$\text{Mensagem} = \text{"A:2023278440028;B:2023278440030"}$$
+  $\text{Mensagem} = \text{"A:2023278440028;B:2023278440030"}$
 
 * **Preenchimento PKCS#7 Dinâmico**:  
   Como cada bloco AES opera rigidamente sobre 16 bytes:
-  $$\text{Tamanho} = 31 \text{ bytes} \implies 32 - 31 = 1 \text{ byte de padding}$$  
+  $\text{Tamanho} = 31 \text{ bytes} \implies 32 - 31 = 1 \text{ byte de padding}$  
   O byte de preenchimento adicionado ao final é `0x01`, totalizando exatamente 32 bytes (2 blocos de 16 bytes).
 
 ---
@@ -81,7 +81,7 @@ Diferente de protocolos baseados em texto ASCII ou strings hexadecimais, o envio
 
 ---
 
-## 4. Especificação Técnica do Transmissor (TX — [`transmissor.ino`](file:///home/spacery/Documents/[CodeRoot]/IFMT/Segurança-Sistemas-Computacionais/SSC-Criptografia-Simetrica/transmissor/transmissor.ino))
+## 4. Especificação Técnica do Transmissor (TX — `transmissor.ino`)
 
 O Transmissor foi projetado em **modo duplo**: realiza a transmissão automática oficial na inicialização e mantém um **Console Interativo via USB** aberto para comandos durante a arguição prática do professor.
 
@@ -147,7 +147,7 @@ flowchart TD
 
 ---
 
-## 5. Especificação Técnica do Receptor (RX — [`receptor/receptor.ino`](file:///home/spacery/Documents/[CodeRoot]/IFMT/Segurança-Sistemas-Computacionais/SSC-Criptografia-Simetrica/receptor/receptor.ino))
+## 5. Especificação Técnica do Receptor (RX — `receptor/receptor.ino`)
 
 O Receptor atua como um nó de escuta passivo e resiliente na UART2 (GPIO 16), com proteção por tempo limite (*timeout*) e decifragem inversa em tempo real.
 
@@ -232,7 +232,7 @@ Este roteiro organiza os passos recomendados durante a arguição prática com o
 
 ### Gravação do Transmissor (TX):
 1. Conecte o ESP32 do Transmissor à porta USB do computador.
-2. Abra o arquivo [`transmissor/transmissor.ino`](file:///home/spacery/Documents/[CodeRoot]/IFMT/Segurança-Sistemas-Computacionais/SSC-Criptografia-Simetrica/transmissor/transmissor.ino).
+2. Abra o arquivo `transmissor/transmissor.ino`.
 3. Selecione a placa: **ESP32 Dev Module** (ou **DOIT ESP32 DEVKIT V1**).
 4. Selecione a porta serial correspondente (ex: `/dev/ttyUSB0`).
 5. Clique em **Carregar / Upload** (`Ctrl + U`).
@@ -240,7 +240,7 @@ Este roteiro organiza os passos recomendados durante a arguição prática com o
 
 ### Gravação do Receptor (RX):
 1. Conecte o ESP32 do Receptor à porta USB do computador.
-2. Abra o arquivo [`receptor/receptor.ino`](file:///home/spacery/Documents/[CodeRoot]/IFMT/Segurança-Sistemas-Computacionais/SSC-Criptografia-Simetrica/receptor/receptor.ino).
+2. Abra o arquivo `receptor/receptor.ino`.
 3. Selecione a placa: **ESP32 Dev Module** (ou **DOIT ESP32 DEVKIT V1**).
 4. Selecione a porta serial correspondente (ex: `/dev/ttyUSB1`).
 5. Clique em **Carregar / Upload** (`Ctrl + U`).
