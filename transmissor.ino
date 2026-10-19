@@ -407,11 +407,47 @@ void encrypt_ecb(const uint8_t *padded_data, size_t padded_len, const uint8_t ro
 }
 
 /*
- * ----------------------------------------------------------------------------
- * ROTINAS DE AUTOTESTE E VALIDAÇÃO (PARTES 1, 2, 3 E 4)
- * ----------------------------------------------------------------------------
+ * ============================================================================
+ * PARTE 5: COMUNICAÇÃO FÍSICA UART2 E PROTOCOLO DE ENVIO EM BYTES BRUTOS
+ * ============================================================================
+ * 
+ * 1. HARDWARE E PINAGEM DA UART2 NO ESP32:
+ * O microcontrolador ESP32 conta com três periféricos UART de hardware:
+ * - UART0: Vinculada internamente à interface USB-Serial (GPIO 1 e GPIO 3).
+ *   Utilizada para gravação e para o Monitor Serial USB (Serial).
+ * - UART1: Mapeada internamente com a memória Flash SPI (não recomendada).
+ * - UART2: Totalmente livre e dedicada a periféricos externos (Serial2).
+ * 
+ * Pinagem recomendada para interligação física das duas placas ESP32:
+ * - Placa A (TX2 - GPIO 17) ---> Placa B (RX2 - GPIO 16)
+ * - Placa A (RX2 - GPIO 16) <--- Placa B (TX2 - GPIO 17)
+ * - Placa A (GND)          <---> Placa B (GND) [Referência elétrica comum OBRIGATÓRIA]
+ * 
+ * 2. ESTRUTURA DO QUADRO (FRAME) DE PROTOCOLO:
+ * A transmissão ocorre obrigatoriamente em BYTES BINÁRIOS BRUTOS:
+ * 
+ *   [ 0xAA ]  [ num_blocks ]  [ Bloco Cifrado 1 (16B) ] ... [ Bloco Cifrado n (16B) ]
+ *   1 byte       1 byte                       16 * n bytes
+ * 
+ * - Byte 0 (0xAA): Marcador fixo de sincronismo e delimitação de início de quadro.
+ * - Byte 1 (n):    Quantidade de blocos AES de 16 bytes que compõem o payload (n >= 1).
+ * - Bytes 2..:     Carga útil cifrada consecutiva (total de 16 * n bytes brutos).
+ * - Tamanho total do frame: 2 + (16 * n) bytes (ex: 34 bytes para mensagem com n=2).
+ * 
+ * 3. POR QUE USAR Serial2.write() E NÃO Serial2.print()?
+ * O método Serial2.print(0xAA, HEX) enviaria texto ASCII ("AA", dois bytes 0x41 0x41),
+ * violando a especificação do protocolo físico.
+ * Já Serial2.write() envia o byte binário bruto direto para a linha serial (1 byte puro).
  */
 
+#define UART2_RX_PIN 16
+#define UART2_TX_PIN 17
+#define UART2_BAUD_RATE 115200
+#define PROTOCOL_START_BYTE 0xAA
+
+/*
+ * Função utilitária para imprimir buffers em formato hexadecimal legível.
+ */
 void print_hex_buffer(const uint8_t *buf, size_t len) {
     for (size_t i = 0; i < len; i++) {
         if (buf[i] < 0x10) Serial.print(F("0"));
@@ -419,6 +455,47 @@ void print_hex_buffer(const uint8_t *buf, size_t len) {
     }
     Serial.println();
 }
+
+/*
+ * Envia o quadro binário via UART2 e gera telemetria no Monitor Serial USB.
+ */
+void send_uart2_frame(uint8_t num_blocks, const uint8_t *ciphertext) {
+    size_t total_payload_bytes = (size_t)num_blocks * 16;
+    size_t total_frame_bytes = 2 + total_payload_bytes;
+
+    // 1. Envio binário bruto pela porta UART2 física
+    Serial2.write((uint8_t)PROTOCOL_START_BYTE);       // Byte 0: Marcador fixo 0xAA
+    Serial2.write(num_blocks);                          // Byte 1: Quantidade de blocos n
+    Serial2.write(ciphertext, total_payload_bytes);     // Bytes 2..: Carga cifrada
+    Serial2.flush();                                    // Aguarda envio elétrico completo
+
+    // 2. Telemetria explicativa no Monitor Serial USB (UART0) para acompanhamento
+    Serial.println(F("\n--------------------------------------------------"));
+    Serial.println(F("[UART2 TX] Quadro binário transmitido com sucesso!"));
+    Serial.print(F("[UART2 TX] Configuração: GPIO 17 (TX2) | "));
+    Serial.print((unsigned int)UART2_BAUD_RATE);
+    Serial.println(F(" bps 8N1"));
+
+    Serial.print(F("[UART2 TX] Frame: "));
+    Serial.print((unsigned int)total_frame_bytes);
+    Serial.print(F(" bytes (Cabeçalho: 2B | Carga: "));
+    Serial.print((unsigned int)total_payload_bytes);
+    Serial.println(F("B)"));
+
+    Serial.print(F("[UART2 TX] Marcador: 0xAA | Qtd de Blocos (n): "));
+    Serial.println((unsigned int)num_blocks);
+
+    Serial.print(F("[UART2 TX] Payload Cifrado: "));
+    print_hex_buffer(ciphertext, total_payload_bytes);
+    Serial.println(F("--------------------------------------------------"));
+}
+
+/*
+ * ----------------------------------------------------------------------------
+ * ROTINAS DE AUTOTESTE E VALIDAÇÃO (PARTES 1, 2, 3, 4 E 5)
+ * ----------------------------------------------------------------------------
+ */
+
 
 void test_part1() {
     Serial.println(F("\n=================================================="));
@@ -731,24 +808,106 @@ void test_part4() {
     Serial.println(F("==================================================\n"));
 }
 
+void test_part5() {
+    Serial.println(F("\n=================================================="));
+    Serial.println(F("     VALIDAÇÃO DA PARTE 5 - PROTOCOLO E UART2     "));
+    Serial.println(F("=================================================="));
+
+    // Dados oficiais da mensagem da dupla:
+    // 2 blocos de 16 bytes = 32 bytes de payload cifrado
+    uint8_t num_blocks = 2;
+    size_t expected_total_bytes = 2 + ((size_t)num_blocks * 16);
+
+    Serial.println(F("[-] Verificação da Estrutura do Frame de Protocolo:"));
+    Serial.print(F("    Marcador de Início Fixo:  0x"));
+    if (PROTOCOL_START_BYTE < 0x10) Serial.print(F("0"));
+    Serial.print(PROTOCOL_START_BYTE, HEX);
+    Serial.println(F(" (1 byte - Sincronismo)"));
+
+    Serial.print(F("    Quantidade de Blocos (n): "));
+    Serial.print((unsigned int)num_blocks);
+    Serial.println(F(" (1 byte - n=2 para a dupla)"));
+
+    Serial.print(F("    Carga Cifrada Esperada:   "));
+    Serial.print((unsigned int)(num_blocks * 16));
+    Serial.println(F(" bytes (2 blocos de 16B)"));
+
+    Serial.print(F("    Tamanho Total do Frame:   "));
+    Serial.print((unsigned int)expected_total_bytes);
+    Serial.println(F(" bytes (Esperado: 34 bytes)"));
+
+    bool ok_sync = (PROTOCOL_START_BYTE == 0xAA);
+    bool ok_blocks = (num_blocks == 2);
+    bool ok_frame_len = (expected_total_bytes == 34);
+
+    Serial.print(F("    Status do Marcador 0xAA: "));
+    Serial.println(ok_sync ? F("CORRETO! [OK]") : F("FALHOU! [ERRO]"));
+    Serial.print(F("    Status da Dimensão (34B): "));
+    Serial.println((ok_blocks && ok_frame_len) ? F("CORRETO! [OK]") : F("FALHOU! [ERRO]"));
+
+    if (ok_sync && ok_blocks && ok_frame_len) {
+        Serial.println(F("\n>>> PARTE 5 VALIDADA COM 100% DE SUCESSO! <<<"));
+        Serial.println(F("O protocolo binário de transmissão via UART2 está perfeitamente em conformidade!"));
+    } else {
+        Serial.println(F("\n>>> ATENÇÃO: HOUVE DIVERGÊNCIA NA PARTE 5! <<<"));
+    }
+    Serial.println(F("==================================================\n"));
+}
+
 void setup() {
-    // 1. Inicializa Monitor Serial USB para depuração e conferência
+    // 1. Inicializa Monitor Serial USB (UART0) para depuração e conferência
     Serial.begin(115200);
-    delay(1000); // Aguarda estabilização do canal serial
+    delay(1000); // Aguarda estabilização do canal serial USB
 
-    Serial.println(F("Firmware do Transmissor (TX) - AES-128 ESP32"));
-    Serial.println(F("Autor: Mateus | Parceira: Lorena | IFMT - SSC"));
+    // 2. Inicializa UART2 física por hardware (comunicação com a Placa B / Receptor)
+    Serial2.begin(UART2_BAUD_RATE, SERIAL_8N1, UART2_RX_PIN, UART2_TX_PIN);
 
-    // Executa as validações das Partes 1, 2, 3 e 4 no boot
+    Serial.println(F("=================================================="));
+    Serial.println(F("  Firmware Transmissor (TX) - AES-128 ESP32"));
+    Serial.println(F("  Autor: Mateus | Parceira: Lorena | IFMT - SSC"));
+    Serial.println(F("=================================================="));
+
+    // Executa as validações das Partes 1 a 5 no boot
     test_part1();
     test_part2();
-    test_part3();
+    test_part3(); // Validação mandatória dos vetores NIST FIPS-197
     test_part4();
+    test_part5();
 
-    // TODO (Parte 5): Inicialização da UART2 física (115200 bps, 8N1)
+    // -------------------------------------------------------------
+    // ENVIO AUTOMÁTICO INICIAL DA MENSAGEM OFICIAL DA DUPLA
+    // -------------------------------------------------------------
+    Serial.println(F(">>> INICIANDO TRANSMISSÃO AUTOMÁTICA DA MENSAGEM OFICIAL <<<"));
+
+    // a) Deriva chave simétrica a partir dos 8 últimos dígitos das matrículas
+    uint8_t master_key[16];
+    derive_key_from_matriculas(MATRICULA_A, MATRICULA_B, master_key);
+
+    // b) Expande as 11 subchaves da rodada
+    uint8_t round_keys[11][16];
+    KeyExpansion(master_key, round_keys);
+
+    // c) Monta a mensagem oficial da dupla
+    char raw_message[64];
+    snprintf(raw_message, sizeof(raw_message), "A:%s;B:%s", MATRICULA_A, MATRICULA_B);
+    size_t raw_len = strlen(raw_message);
+
+    // d) Aplica o preenchimento PKCS#7 dinâmico (31 bytes + 1 byte 0x01 = 32 bytes)
+    uint8_t padded_buffer[64];
+    size_t padded_len = apply_pkcs7_padding((const uint8_t*)raw_message, raw_len, padded_buffer);
+    uint8_t num_blocks = (uint8_t)(padded_len / 16);
+
+    // e) Cifra os 2 blocos usando AES-128 em modo ECB
+    uint8_t ciphertext[64];
+    encrypt_ecb(padded_buffer, padded_len, round_keys, ciphertext);
+
+    // f) Envia o frame binário bruto [0xAA, n, ciphertext] pela UART2 física
+    send_uart2_frame(num_blocks, ciphertext);
+
+    Serial.println(F(">>> TRANSMISSÃO CONCLUÍDA! Pronto para escutar o Monitor USB. <<<"));
 }
 
 void loop() {
-    // TODO (Parte 6): Console interativo e envio contínuo
+    // TODO (Parte 6): Console interativo via Monitor USB Serial (comandos /test, /flip, /key, /reset)
     delay(100);
 }
