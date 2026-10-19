@@ -53,13 +53,3 @@ dkms.conf
 
 # debug information files
 *.dwo
-
-# Pastas locais de testes e simuladores
-simuladores/
-testes/
-
-# Ferramentas de IA e agentes locais
-.agents/
-__pycache__/
-*.pyc
-
