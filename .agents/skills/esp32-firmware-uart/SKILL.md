@@ -18,7 +18,7 @@ Esta habilidade orienta o desenvolvimento do firmware embarcado para as duas pla
 1. **Estrutura de Firmware para Arduino IDE (Arquivo Único `.ino`)**:
    - `transmissor.ino` (Placa A - Mateus): 
      - **Modo Automático**: Ao ligar, deriva a chave (`7844002878440030`), monta a mensagem oficial (`A:2023278440028;B:2023278440030`), aplica PKCS#7 e envia via `Serial2.write`.
-     - **Console Interativo USB (`Serial`)**: Escuta entradas via Monitor Serial. Qualquer texto digitado é preenchido dinamicamente com PKCS#7, cifrado e enviado pela UART2. Suporta comandos `/flip` (inverter 1 bit da chave), `/key <nova_chave>` e `/reset`.
+     - **Console Interativo USB (`Serial`)**: Escuta entradas via Monitor Serial. Qualquer texto digitado é preenchido dinamicamente com PKCS#7, cifrado e enviado pela UART2. Suporta comandos `/test` (autoteste dos vetores FIPS-197), `/flip` (inverter 1 bit da chave), `/key <nova_chave>` e `/reset`. As rotinas de validação do FIPS-197 permanecem no firmware para a demonstração oral.
    - `receptor.ino` (Placa B - Lorena): Contém todas as constantes, funções do AES-128 inverso e rotinas de recepção no sketch `.ino`, sincronizando em `0xAA`, recebendo bytes brutos com timeout, decifrando, removendo PKCS#7 e exibindo no Serial Monitor USB (`Serial`).
 2. **Configuração Fisiológica da UART2**:
    - Pinagem recomendada:

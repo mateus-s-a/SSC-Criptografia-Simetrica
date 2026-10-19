@@ -23,6 +23,7 @@ Esta habilidade orienta a implementação e verificação estrita do núcleo cri
 3. **Validação com Vetores de Teste**:
    - Executar o script de teste [verify_aes_fips.py](./scripts/verify_aes_fips.py) para conferir a matemática e os vetores de teste.
    - Consultar os vetores do NIST em [fips197_vectors.md](./references/fips197_vectors.md).
+   - **Retenção no Firmware**: A função de autoteste em C/C++ dos vetores NIST FIPS-197 (`test_part3()`) deve ser mantida permanentemente no código do firmware (`transmissor.ino` e `receptor.ino`) para comprovar o funcionamento prévio perante o professor na apresentação oral.
 
 ## Procedimento de Validação Passo a Passo
 1. Implementar a operação elementar `xtime`:

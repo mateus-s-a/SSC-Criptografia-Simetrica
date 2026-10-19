@@ -39,7 +39,7 @@ O algoritmo AES-128 cifra blocos de 128 bits (16 bytes) usando uma chave de 128 
 ---
 
 ## 3. Validação Prévia Mandatória (NIST FIPS-197)
-Antes de testar com os dados da dupla, o algoritmo deve ser validado pelos vetores oficiais do NIST FIPS-197:
+Antes de testar com os dados da dupla, o algoritmo deve ser validado pelos vetores oficiais do NIST FIPS-197. Conforme diretriz do enunciado e da apresentação, esta função de autoteste (`test_part3()`) deve ser mantida permanentemente no código-fonte do firmware (sendo acionada no `setup()` e via console interativo `/test`) para demonstração ao vivo perante o avaliador:
 
 - **Apêndice B**:
   - Chave: `2b7e151628aed2a6abf7158809cf4f3c`

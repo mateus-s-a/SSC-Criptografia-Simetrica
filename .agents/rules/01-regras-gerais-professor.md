@@ -28,6 +28,7 @@
    - Conteúdo obrigatório: Registros hexadecimais da Etapa 3, detalhamento dos 5 estados intermediários do Bloco 1 (Rodada 1), cálculo do Efeito Avalanche e discussão técnica aprofundada sobre a insegurança do modo ECB.
 3. **Apresentação Oral e Demonstração Prática**:
    - Demonstração ao vivo em bancada com os dois ESP32 comunicando-se via UART2.
+   - **Validação Prévia Mandatória no Firmware**: Conforme o enunciado, antes de transmitir os dados das matrículas, o firmware deve demonstrar o correto funcionamento do AES-128 via vetores oficiais do NIST FIPS-197. Portanto, a rotina de autoteste (`test_part3()`) permanece embutida no firmware, sendo executada no `setup()` e via comando interativo `/test`.
    - Explicação cruzada: cada integrante da dupla deve ser capaz de explicar o trecho de código implementado pelo colega.
    - Arguição com modificação em tempo real pelo professor (ex: alteração de mensagem ou bit da chave).
 

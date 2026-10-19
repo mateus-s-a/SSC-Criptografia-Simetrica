@@ -37,6 +37,7 @@
     3. Monta e transmite o quadro binário via `Serial2.write`.
     4. Imprime no Monitor Serial local o dump hexadecimal dos blocos para conferência.
   - Comandos de controle suportados:
+    - `/test`: reexecuta os autotestes de validação dos vetores NIST FIPS-197 (Apêndices B e C.1) para demonstração ao vivo.
     - `/flip`: inverte 1 bit na chave simétrica atual (`key[0] ^= 0x01`) e reenvia.
     - `/key <nova_chave>`: carrega uma nova chave de 16 bytes.
     - `/reset`: restaura a chave original da dupla.

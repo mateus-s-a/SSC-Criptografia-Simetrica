@@ -19,13 +19,15 @@ Este repositório contém o projeto prático da disciplina de **Segurança de Si
    - Se o usuário (ou o professor na arguição) digitar qualquer novo texto:
      - O ESP32 calcula o preenchimento PKCS#7 correspondente dinamicamente, cifra em $n$ blocos AES-128 ECB e transmite pela UART2.
    - Suporte a comandos especiais para a arguição prática do professor:
+     - `/test`: reexecuta em tempo real o autoteste completo contra os vetores do NIST FIPS-197 (Apêndices B e C.1) para demonstração imediata ao professor.
      - `/flip`: inverte 1 bit na chave e reenvia a mensagem para demonstrar o Efeito Avalanche ao vivo.
      - `/key <chave_16_bytes>`: atualiza a chave simétrica dinamicamente para testar chaves propostas pelo professor.
      - `/reset`: restaura a chave e mensagem padrão das matrículas.
 
 ## Regras Críticas de Conduta do Agente:
 1. **NUNCA introduzir bibliotecas criptográficas externas** (como `mbedtls`, `tinycrypt`, etc.) no código-fonte final C/C++ dos ESP32. O AES-128 deve ser 100% implementado do zero.
-2. **Respeitar os Vetores FIPS-197**: Qualquer alteração no motor criptográfico em C/C++ deve ser previamente validada contra os vetores oficiais dos Apêndices B e C.1 do NIST FIPS-197.
-3. **Respeitar o Protocolo UART**: O envio pela UART2 deve ser obrigatoriamente em **bytes binários brutos** (`write`), nunca texto hexadecimal. O quadro segue o formato `[0xAA, n, blocos_cifrados]`.
-4. **Respeitar as Regras de Matrícula**: A chave e a mensagem devem seguir estritamente o algoritmo de derivação dos 8 dígitos finais das matrículas dos integrantes Mateus e Lorena.
-5. **Preparação para Arguição Cruzada**: Manter o código de TX e RX claro, modular e amplamente documentado, pois Mateus precisará explicar o código do RX (de Lorena) e Lorena precisará explicar o código do TX (de Mateus), além de serem desafiados com alterações ao vivo.
+2. **Preservar a Validação FIPS-197 no Firmware**: Conforme exigência explícita do professor para a apresentação ("Antes das matrículas, a dupla valida o AES com os vetores do FIPS-197"), as rotinas de autoteste do NIST (Apêndices B e C.1) DEVEM ser mantidas no código-fonte do firmware (executadas no `setup()` e via comando `/test`) para comprovar o correto funcionamento do algoritmo antes dos dados das matrículas.
+3. **Independência dos Módulos**: O Transmissor (TX) e o Receptor (RX) são independentes em tempo de desenvolvimento. O Transmissor pode ser totalmente implementado e validado via monitor serial sem necessidade prévia do receptor finalizado.
+4. **Respeitar o Protocolo UART**: O envio pela UART2 deve ser obrigatoriamente em **bytes binários brutos** (`write`), nunca texto hexadecimal. O quadro segue o formato `[0xAA, n, blocos_cifrados]`.
+5. **Respeitar as Regras de Matrícula**: A chave e a mensagem devem seguir estritamente o algoritmo de derivação dos 8 dígitos finais das matrículas dos integrantes Mateus e Lorena.
+6. **Preparação para Arguição Cruzada**: Manter o código de TX e RX claro, modular e amplamente documentado, pois Mateus precisará explicar o código do RX (de Lorena) e Lorena precisará explicar o código do TX (de Mateus), além de serem desafiados com alterações ao vivo.

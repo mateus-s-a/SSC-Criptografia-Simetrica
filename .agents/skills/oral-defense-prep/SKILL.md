@@ -12,7 +12,8 @@ description: >-
 Esta habilidade estrutura a preparação técnica da dupla Mateus e Lorena para a apresentação oral e a avaliação prática em bancada com o professor.
 
 ## Dinâmica da Avaliação
-1. **Demonstração em Bancada**:
+1. **Validação Prévia FIPS-197 e Demonstração em Bancada**:
+   - Conforme exigido no roteiro, comprovar o funcionamento do algoritmo com os vetores oficiais do NIST FIPS-197 (exibidos no boot do `transmissor.ino` ou acionados via comando `/test` no Monitor Serial USB).
    - Conectar os dois ESP32 via UART2 (TX-RX cruzado e GND comum).
    - Abrir o Monitor Serial USB da Placa B a 115200 bps.
    - Enviar a mensagem da dupla a partir da Placa A e exibir o texto decifrado na Placa B.

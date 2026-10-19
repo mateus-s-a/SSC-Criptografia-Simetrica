@@ -329,8 +329,86 @@ void aes128_encrypt_block(const uint8_t plaintext[16], const uint8_t round_keys[
 }
 
 /*
+ * ============================================================================
+ * PARTE 4: DADOS DA DUPLA, PREENCHIMENTO PKCS#7 DINÂMICO E MODO ECB
+ * ============================================================================
+ */
+
+// Matrículas oficiais da dupla
+const char MATRICULA_A[] = "2023278440028"; // Aluno A: Lorena
+const char MATRICULA_B[] = "2023278440030"; // Aluno B: Mateus
+
+/*
+ * 1. Extração dos 8 últimos dígitos:
+ * Percorre a string de matrícula, filtra apenas os caracteres numéricos e extrai
+ * os 8 últimos dígitos. Se houver menos de 8 dígitos, preenche com '0' à esquerda.
+ */
+void extract_last_8_digits(const char *mat, char out8[9]) {
+    char digits[32];
+    uint8_t d_count = 0;
+    for (size_t i = 0; mat[i] != '\0' && d_count < 31; i++) {
+        if (mat[i] >= '0' && mat[i] <= '9') {
+            digits[d_count++] = mat[i];
+        }
+    }
+    digits[d_count] = '\0';
+
+    if (d_count >= 8) {
+        memcpy(out8, &digits[d_count - 8], 8);
+    } else {
+        uint8_t pad = 8 - d_count;
+        for (uint8_t i = 0; i < pad; i++) out8[i] = '0';
+        memcpy(&out8[pad], digits, d_count);
+    }
+    out8[8] = '\0';
+}
+
+/*
+ * 2. Derivação da chave de 16 bytes a partir das matrículas:
+ * Concatena os 8 dígitos de A com os 8 dígitos de B e converte para código ASCII.
+ * Lorena (78440028) + Mateus (78440030) = "7844002878440030"
+ */
+void derive_key_from_matriculas(const char *matA, const char *matB, uint8_t key[16]) {
+    char digitsA[9];
+    char digitsB[9];
+    extract_last_8_digits(matA, digitsA);
+    extract_last_8_digits(matB, digitsB);
+
+    memcpy(&key[0], digitsA, 8);
+    memcpy(&key[8], digitsB, 8);
+}
+
+/*
+ * 3. Preenchimento PKCS#7 Dinâmico (RFC 5652):
+ * O AES exige que os dados sejam estritamente múltiplos de 16 bytes.
+ * Calcula quantos bytes faltam: pad_len = 16 - (in_len % 16).
+ * Adiciona pad_len bytes, todos com o valor numérico igual a pad_len.
+ * Retorna o tamanho total dos dados preenchidos.
+ */
+size_t apply_pkcs7_padding(const uint8_t *in, size_t in_len, uint8_t *out) {
+    uint8_t pad_len = 16 - (in_len % 16);
+    memcpy(out, in, in_len);
+    for (uint8_t i = 0; i < pad_len; i++) {
+        out[in_len + i] = pad_len;
+    }
+    return in_len + pad_len;
+}
+
+/*
+ * 4. Cifragem em Modo ECB (Electronic Codebook):
+ * Divide os dados preenchidos em n blocos de 16 bytes e cifra cada um de forma
+ * totalmente independente usando o núcleo aes128_encrypt_block().
+ */
+void encrypt_ecb(const uint8_t *padded_data, size_t padded_len, const uint8_t round_keys[11][16], uint8_t *ciphertext) {
+    size_t num_blocks = padded_len / 16;
+    for (size_t b = 0; b < num_blocks; b++) {
+        aes128_encrypt_block(&padded_data[b * 16], round_keys, &ciphertext[b * 16]);
+    }
+}
+
+/*
  * ----------------------------------------------------------------------------
- * ROTINAS DE AUTOTESTE E VALIDAÇÃO (PARTES 1, 2 E 3)
+ * ROTINAS DE AUTOTESTE E VALIDAÇÃO (PARTES 1, 2, 3 E 4)
  * ----------------------------------------------------------------------------
  */
 
@@ -552,6 +630,107 @@ void test_part3() {
     Serial.println(F("==================================================\n"));
 }
 
+void test_part4() {
+    Serial.println(F("\n=================================================="));
+    Serial.println(F("     VALIDAÇÃO DA PARTE 4 - DADOS OFICIAIS DUPLA   "));
+    Serial.println(F("=================================================="));
+
+    // 1. Derivação da chave a partir das matrículas
+    uint8_t derived_key[16];
+    derive_key_from_matriculas(MATRICULA_A, MATRICULA_B, derived_key);
+
+    Serial.print(F("[-] Matrícula A (Lorena): "));
+    Serial.println(MATRICULA_A);
+    Serial.print(F("[-] Matrícula B (Mateus): "));
+    Serial.println(MATRICULA_B);
+
+    Serial.print(F("[-] Chave Derivada (ASCII): "));
+    for (int i = 0; i < 16; i++) Serial.print((char)derived_key[i]);
+    Serial.println();
+
+    Serial.print(F("[-] Chave Derivada (Hex):   "));
+    print_hex_buffer(derived_key, 16);
+
+    const char exp_key_ascii[] = "7844002878440030";
+    bool ok_key = (memcmp(derived_key, exp_key_ascii, 16) == 0);
+    Serial.print(F("    Status da Chave: "));
+    Serial.println(ok_key ? F("CORRETA! [OK]") : F("INCORRETA! [ERRO]"));
+
+    // 2. Montagem da Mensagem e Preenchimento PKCS#7
+    char raw_message[64];
+    snprintf(raw_message, sizeof(raw_message), "A:%s;B:%s", MATRICULA_A, MATRICULA_B);
+    size_t raw_len = strlen(raw_message);
+
+    Serial.print(F("\n[-] Mensagem Original ("));
+    Serial.print((unsigned int)raw_len);
+    Serial.print(F(" bytes): "));
+    Serial.println(raw_message);
+
+    uint8_t padded_buffer[64];
+    size_t padded_len = apply_pkcs7_padding((const uint8_t*)raw_message, raw_len, padded_buffer);
+
+    Serial.print(F("[-] Mensagem com PKCS#7 ("));
+    Serial.print((unsigned int)padded_len);
+    Serial.print(F(" bytes / "));
+    Serial.print((unsigned int)(padded_len / 16));
+    Serial.println(F(" blocos):"));
+    Serial.print(F("    Buffer Completo (Hex): "));
+    print_hex_buffer(padded_buffer, padded_len);
+
+    Serial.print(F("    Bloco 1 (Hex):         "));
+    print_hex_buffer(&padded_buffer[0], 16);
+    Serial.print(F("    Bloco 2 (Hex):         "));
+    print_hex_buffer(&padded_buffer[16], 16);
+
+    bool ok_pad = (padded_len == 32 && padded_buffer[31] == 0x01);
+    Serial.print(F("    Status do PKCS#7:      "));
+    Serial.println(ok_pad ? F("1 byte 0x01 adicionado! [OK]") : F("Falha no padding! [ERRO]"));
+
+    // 3. Expansão de Chaves e Cifragem ECB
+    uint8_t round_keys[11][16];
+    KeyExpansion(derived_key, round_keys);
+
+    uint8_t cipher_output[64];
+    encrypt_ecb(padded_buffer, padded_len, round_keys, cipher_output);
+
+    Serial.println(F("\n[-] Cifragem AES-128 em Modo ECB:"));
+    Serial.print(F("    Cifrado Total (32 bytes): "));
+    print_hex_buffer(cipher_output, 32);
+
+    Serial.print(F("    Bloco Cifrado 1 (Hex):   "));
+    print_hex_buffer(&cipher_output[0], 16);
+    Serial.print(F("    Bloco Cifrado 2 (Hex):   "));
+    print_hex_buffer(&cipher_output[16], 16);
+
+    // Gabarito oficial calculado para a dupla:
+    // Bloco 1: 201919f99f96202aef26cdff9eb3374d
+    // Bloco 2: 5c7fa16d88cb3c29f0aec6b3c204d966
+    const uint8_t exp_c1[16] = {
+        0x20, 0x19, 0x19, 0xf9, 0x9f, 0x96, 0x20, 0x2a,
+        0xef, 0x26, 0xcd, 0xff, 0x9e, 0xb3, 0x37, 0x4d
+    };
+    const uint8_t exp_c2[16] = {
+        0x5c, 0x7f, 0xa1, 0x6d, 0x88, 0xcb, 0x3c, 0x29,
+        0xf0, 0xae, 0xc6, 0xb3, 0xc2, 0x04, 0xd9, 0x66
+    };
+
+    bool ok_c1 = (memcmp(&cipher_output[0], exp_c1, 16) == 0);
+    bool ok_c2 = (memcmp(&cipher_output[16], exp_c2, 16) == 0);
+
+    Serial.print(F("    Conferência Bloco 1: "));
+    Serial.println(ok_c1 ? F("EXATO AO GABARITO! [OK]") : F("DIVERGÊNCIA! [ERRO]"));
+    Serial.print(F("    Conferência Bloco 2: "));
+    Serial.println(ok_c2 ? F("EXATO AO GABARITO! [OK]") : F("DIVERGÊNCIA! [ERRO]"));
+
+    if (ok_key && ok_pad && ok_c1 && ok_c2) {
+        Serial.println(F("\n>>> PARTE 4 VALIDADA COM 100% DE SUCESSO! <<<"));
+        Serial.println(F("Os dados da dupla foram derivados, preenchidos e cifrados perfeitamente!"));
+    } else {
+        Serial.println(F("\n>>> ATENÇÃO: HOUVE DIVERGÊNCIA NA PARTE 4! <<<"));
+    }
+    Serial.println(F("==================================================\n"));
+}
+
 void setup() {
     // 1. Inicializa Monitor Serial USB para depuração e conferência
     Serial.begin(115200);
@@ -560,10 +739,11 @@ void setup() {
     Serial.println(F("Firmware do Transmissor (TX) - AES-128 ESP32"));
     Serial.println(F("Autor: Mateus | Parceira: Lorena | IFMT - SSC"));
 
-    // Executa as validações das Partes 1, 2 e 3 no boot
+    // Executa as validações das Partes 1, 2, 3 e 4 no boot
     test_part1();
     test_part2();
     test_part3();
+    test_part4();
 
     // TODO (Parte 5): Inicialização da UART2 física (115200 bps, 8N1)
 }
