@@ -854,6 +854,202 @@ void test_part5() {
     Serial.println(F("==================================================\n"));
 }
 
+/*
+ * ============================================================================
+ * PARTE 6: CONSOLE INTERATIVO USB E CONTROLE DE ARGUIÇÃO ORAL
+ * ============================================================================
+ * 
+ * 1. OBJETIVO DO MODO INTERATIVO (OPÇÃO B):
+ * Durante a apresentação prática e arguição do professor, o transmissor opera
+ * em modo dinâmico através do Monitor Serial USB (Serial a 115200 bps):
+ * 
+ * - Texto arbitrário: O professor ou operador digita qualquer texto novo.
+ *   O firmware calcula dinamicamente o preenchimento PKCS#7 correspondente,
+ *   cifra em n blocos AES-128 ECB e transmite o quadro binário bruto via UART2.
+ * 
+ * - Comando /test: Reexecuta imediatamente os autotestes oficiais do NIST
+ *   FIPS-197 (Apêndices B e C.1) para demonstração de conformidade matemática.
+ * 
+ * - Comando /flip: Inverte 1 bit na chave simétrica atual (current_key[0] ^= 0x01),
+ *   recalcula a expansão de subchaves e recifra a mensagem atual, permitindo
+ *   observar na prática o EFEITO AVALANCHE (alteração de ~50% dos bits do cifrado).
+ * 
+ * - Comando /key <16_caracteres>: Permite ao avaliador propor uma nova chave
+ *   de 16 bytes e verificar a reação imediata do sistema.
+ * 
+ * - Comando /reset: Restaura a chave original das matrículas ("7844002878440030")
+ *   e a mensagem padrão oficial da dupla ("A:2023278440028;B:2023278440030").
+ * 
+ * - Comando /help: Exibe a lista didática de comandos no Monitor Serial USB.
+ */
+
+// Estado mantido na sessão interativa do Transmissor
+static uint8_t current_key[16];
+static uint8_t current_round_keys[11][16];
+static char current_message[128];
+
+/*
+ * Cifra uma mensagem em texto claro usando PKCS#7 dinâmico e a chave atual,
+ * enviando em seguida o frame binário pela UART2 e exibindo telemetria no USB.
+ */
+void process_and_send_message(const char *msg) {
+    size_t raw_len = strlen(msg);
+    if (raw_len == 0) return;
+    if (raw_len > 112) {
+        Serial.println(F("[ERRO] Mensagem muito extensa! O buffer suporta até 112 caracteres."));
+        return;
+    }
+
+    // 1. Aplica preenchimento PKCS#7 dinâmico
+    uint8_t padded_buffer[128];
+    size_t padded_len = apply_pkcs7_padding((const uint8_t*)msg, raw_len, padded_buffer);
+    uint8_t num_blocks = (uint8_t)(padded_len / 16);
+
+    // 2. Cifra todos os n blocos em modo AES-128 ECB
+    uint8_t ciphertext[128];
+    encrypt_ecb(padded_buffer, padded_len, current_round_keys, ciphertext);
+
+    // 3. Telemetria no Monitor USB Serial
+    Serial.println(F("\n=================================================="));
+    Serial.print(F("[CONSOLE TX] Texto Claro:  \""));
+    Serial.print(msg);
+    Serial.println(F("\""));
+
+    Serial.print(F("[CONSOLE TX] Tamanho:      "));
+    Serial.print((unsigned int)raw_len);
+    Serial.print(F(" bytes -> Com PKCS#7: "));
+    Serial.print((unsigned int)padded_len);
+    Serial.print(F(" bytes ("));
+    Serial.print((unsigned int)num_blocks);
+    Serial.println(F(" bloco(s) AES)"));
+
+    Serial.print(F("[CONSOLE TX] Chave Atual:   \""));
+    for (int i = 0; i < 16; i++) Serial.print((char)current_key[i]);
+    Serial.println(F("\""));
+
+    Serial.print(F("[CONSOLE TX] Chave Hex:     "));
+    print_hex_buffer(current_key, 16);
+
+    // 4. Transmissão do frame binário [0xAA, n, ciphertext] pela UART2 física
+    send_uart2_frame(num_blocks, ciphertext);
+}
+
+/*
+ * Imprime o menu de ajuda com os comandos disponíveis no console.
+ */
+void print_help_menu() {
+    Serial.println(F("\n================ COMANDOS DO CONSOLE TRANSMISSOR ================"));
+    Serial.println(F("  /test               : Reexecuta autoteste dos vetores NIST FIPS-197"));
+    Serial.println(F("  /flip               : Inverte 1 bit na chave e reenvia (Efeito Avalanche)"));
+    Serial.println(F("  /key <16_caracteres>: Define uma nova chave simétrica de 128 bits"));
+    Serial.println(F("  /reset              : Restaura a chave e mensagem padrão das matrículas"));
+    Serial.println(F("  /help               : Exibe este menu explicativo"));
+    Serial.println(F("  <qualquer_texto>    : Cifra dinamicamente com PKCS#7 e envia via UART2"));
+    Serial.println(F("=================================================================\n"));
+}
+
+/*
+ * Executa o comando /flip para demonstrar o Efeito Avalanche ao vivo.
+ */
+void handle_cmd_flip() {
+    Serial.println(F("\n>>> COMANDO /flip: DEMONSTRAÇÃO PRÁTICA DO EFEITO AVALANCHE <<<"));
+    uint8_t old_byte = current_key[0];
+    current_key[0] ^= 0x01; // Inverte o bit menos significativo (LSB) do byte 0
+
+    Serial.print(F("[FLIP] Inversão de 1 bit: current_key[0] de 0x"));
+    if (old_byte < 0x10) Serial.print(F("0"));
+    Serial.print(old_byte, HEX);
+    Serial.print(F(" para 0x"));
+    if (current_key[0] < 0x10) Serial.print(F("0"));
+    Serial.println(current_key[0], HEX);
+
+    // Recalcula subchaves da rodada a partir da chave modificada
+    KeyExpansion(current_key, current_round_keys);
+    Serial.println(F("[FLIP] Subchaves da rodada recalculadas via KeyExpansion."));
+
+    // Recifra e retransmite a mensagem atual
+    process_and_send_message(current_message);
+
+    Serial.println(F("[FLIP] Análise Criptográfica:"));
+    Serial.println(F("       Mesmo alterando APENAS 1 BIT na chave, a combinação de"));
+    Serial.println(F("       SubBytes, ShiftRows e MixColumns dispersa a diferença,"));
+    Serial.println(F("       mudando aproximadamente metade de todos os bits do cifrado!"));
+}
+
+/*
+ * Executa o comando /key <nova_chave> para carregar chave dinâmica de 16 bytes.
+ */
+void handle_cmd_key(const String &arg) {
+    if (arg.length() != 16) {
+        Serial.print(F("[ERRO] Chave inválida! O AES-128 exige chave de 16 bytes/caracteres (recebido: "));
+        Serial.print((unsigned int)arg.length());
+        Serial.println(F("). A chave não foi alterada."));
+        return;
+    }
+
+    memcpy(current_key, arg.c_str(), 16);
+    KeyExpansion(current_key, current_round_keys);
+
+    Serial.println(F("\n>>> COMANDO /key: NOVA CHAVE SIMÉTRICA CARREGADA! <<<"));
+    process_and_send_message(current_message);
+}
+
+/*
+ * Executa o comando /reset para restaurar a chave e a mensagem padrão da dupla.
+ */
+void handle_cmd_reset() {
+    Serial.println(F("\n>>> COMANDO /reset: RESTAURANDO DADOS OFICIAIS DA DUPLA <<<"));
+
+    derive_key_from_matriculas(MATRICULA_A, MATRICULA_B, current_key);
+    KeyExpansion(current_key, current_round_keys);
+    snprintf(current_message, sizeof(current_message), "A:%s;B:%s", MATRICULA_A, MATRICULA_B);
+
+    Serial.print(F("[RESET] Chave oficial restaurada: \""));
+    for (int i = 0; i < 16; i++) Serial.print((char)current_key[i]);
+    Serial.println(F("\""));
+
+    process_and_send_message(current_message);
+}
+
+/*
+ * Executa o comando /test para reexecutar o autoteste oficial FIPS-197.
+ */
+void handle_cmd_test() {
+    Serial.println(F("\n>>> COMANDO /test: REVALIDAÇÃO DOS VETORES OFICIAIS NIST FIPS-197 <<<"));
+    test_part3();
+}
+
+/*
+ * Interpreta e roteia as entradas recebidas via Monitor Serial USB.
+ */
+void process_serial_input(String input) {
+    input.trim();
+    if (input.length() == 0) return;
+
+    if (input.equalsIgnoreCase(F("/help")) || input.equalsIgnoreCase(F("/?"))) {
+        print_help_menu();
+    } else if (input.equalsIgnoreCase(F("/test"))) {
+        handle_cmd_test();
+    } else if (input.equalsIgnoreCase(F("/flip"))) {
+        handle_cmd_flip();
+    } else if (input.startsWith(F("/key ")) || input.startsWith(F("/KEY "))) {
+        String key_arg = input.substring(5);
+        key_arg.trim();
+        handle_cmd_key(key_arg);
+    } else if (input.equalsIgnoreCase(F("/reset"))) {
+        handle_cmd_reset();
+    } else if (input.startsWith(F("/"))) {
+        Serial.print(F("[AVISO] Comando desconhecido: \""));
+        Serial.print(input);
+        Serial.println(F("\". Digite /help para ver os comandos disponíveis."));
+    } else {
+        // Texto comum: atualiza current_message, cifra e transmite
+        strncpy(current_message, input.c_str(), sizeof(current_message) - 1);
+        current_message[sizeof(current_message) - 1] = '\0';
+        process_and_send_message(current_message);
+    }
+}
+
 void setup() {
     // 1. Inicializa Monitor Serial USB (UART0) para depuração e conferência
     Serial.begin(115200);
@@ -875,39 +1071,32 @@ void setup() {
     test_part5();
 
     // -------------------------------------------------------------
-    // ENVIO AUTOMÁTICO INICIAL DA MENSAGEM OFICIAL DA DUPLA
+    // INICIALIZAÇÃO DA SESSÃO E ENVIO AUTOMÁTICO INICIAL
     // -------------------------------------------------------------
     Serial.println(F(">>> INICIANDO TRANSMISSÃO AUTOMÁTICA DA MENSAGEM OFICIAL <<<"));
 
-    // a) Deriva chave simétrica a partir dos 8 últimos dígitos das matrículas
-    uint8_t master_key[16];
-    derive_key_from_matriculas(MATRICULA_A, MATRICULA_B, master_key);
+    // a) Deriva chave simétrica inicial a partir das matrículas
+    derive_key_from_matriculas(MATRICULA_A, MATRICULA_B, current_key);
 
     // b) Expande as 11 subchaves da rodada
-    uint8_t round_keys[11][16];
-    KeyExpansion(master_key, round_keys);
+    KeyExpansion(current_key, current_round_keys);
 
-    // c) Monta a mensagem oficial da dupla
-    char raw_message[64];
-    snprintf(raw_message, sizeof(raw_message), "A:%s;B:%s", MATRICULA_A, MATRICULA_B);
-    size_t raw_len = strlen(raw_message);
+    // c) Monta a mensagem padrão oficial da dupla
+    snprintf(current_message, sizeof(current_message), "A:%s;B:%s", MATRICULA_A, MATRICULA_B);
 
-    // d) Aplica o preenchimento PKCS#7 dinâmico (31 bytes + 1 byte 0x01 = 32 bytes)
-    uint8_t padded_buffer[64];
-    size_t padded_len = apply_pkcs7_padding((const uint8_t*)raw_message, raw_len, padded_buffer);
-    uint8_t num_blocks = (uint8_t)(padded_len / 16);
+    // d) Cifra e envia a mensagem oficial via UART2
+    process_and_send_message(current_message);
 
-    // e) Cifra os 2 blocos usando AES-128 em modo ECB
-    uint8_t ciphertext[64];
-    encrypt_ecb(padded_buffer, padded_len, round_keys, ciphertext);
-
-    // f) Envia o frame binário bruto [0xAA, n, ciphertext] pela UART2 física
-    send_uart2_frame(num_blocks, ciphertext);
-
-    Serial.println(F(">>> TRANSMISSÃO CONCLUÍDA! Pronto para escutar o Monitor USB. <<<"));
+    // e) Exibe menu de comandos no Monitor Serial USB
+    print_help_menu();
+    Serial.println(F("Transmissor pronto! Digite uma mensagem ou comando acima:"));
 }
 
 void loop() {
-    // TODO (Parte 6): Console interativo via Monitor USB Serial (comandos /test, /flip, /key, /reset)
-    delay(100);
+    // Escuta continuamente a porta serial USB para comandos da arguição oral
+    if (Serial.available() > 0) {
+        String input = Serial.readStringUntil('\n');
+        process_serial_input(input);
+    }
+    delay(20);
 }
