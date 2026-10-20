@@ -299,7 +299,7 @@ int remover_padding_pkcs7(uint8_t *buffer, int tamanho) {
   uint8_t tamanho_padding = buffer[tamanho - 1];
 
   if (tamanho_padding == 0 || tamanho_padding > 16 ||
-      tamanho_padding > (uint8_t)tamanho) {
+      tamanho_padding > tamanho) {
     return -1;
   }
 
