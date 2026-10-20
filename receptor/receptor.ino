@@ -1,36 +1,8 @@
 /*
- * ============================================================================
- * PROJETO: AES-128 em Dois ESP32 via UART
- * DISCIPLINA: Segurança de Sistemas de Computação - IFMT
- * ALUNOS: Lorena Strobel e Mateus de Souza
- * PROFESSOR: Dr. Ruy de Oliveira
- *
- * MÓDULO: Receptor (RX) - Placa B (Versão Oficial para Placa Física / GitHub)
- * RESPONSÁVEL: Lorena (Aluno A)
- *
- * MATRÍCULAS DA DUPLA:
- *   - Aluno A (Lorena): 2023278440028 -> 8 últimos dígitos: 78440028
- *   - Aluno B (Mateus): 2023278440030 -> 8 últimos dígitos: 78440030
- *
- * CHAVE SIMÉTRICA (16 bytes ASCII): "7844002878440030"
- *
- * FORMATOS DE MENSAGEM SUPORTADOS DINAMICAMENTE PELO RECEPTOR (PKCS#7):
- * - Opção A (Matrícula Completa 13 dígitos): "A:2023278440028;B:2023278440030"
- *   Tamanho: 31 bytes + 1 byte de preenchimento (0x01) = 32 bytes (2 blocos
- * AES)
- * - Opção B (Matrícula Reduzida 8 dígitos):  "A:78440028;B:78440030"
- *   Tamanho: 21 bytes + 11 bytes de preenchimento (0x0B) = 32 bytes (2 blocos
- * AES) O receptor valida e decifra qualquer uma das opções perfeitamente em
- * tempo de execução.
- *
- * ESPECIFICAÇÃO DE HARDWARE E COMUNICAÇÃO:
- * - Microcontrolador: ESP32
- * - UART2 nos pinos: RX = GPIO 16 (recebe do TX) e TX = GPIO 17
- * - Velocidade: 115200 bps, 8N1
- * - Formato do quadro binário bruto: [0xAA, n_blocos, carga_cifrada (n * 16
- * bytes)]
- * - Proteção por tempo limite (timeout) de 2000 ms contra travamentos
- * ============================================================================
+ * Receptor (RX) - AES-128 ESP32 (UART2)
+ * Disciplina: Segurança de Sistemas de Computação - IFMT
+ * Dupla: Lorena Strobel (2023278440028) & Mateus de Souza (2023278440030)
+ * Chave: "7844002878440030" | Mensagem: "A:2023278440028;B:2023278440030"
  */
 
 #include <Arduino.h>
