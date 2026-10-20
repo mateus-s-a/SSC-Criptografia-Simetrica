@@ -89,7 +89,7 @@ static uint8_t chaves_de_rodada[11][4][4];
 
 // Multiplicação por 0x02 (xtime) no corpo de Galois com polinômio redutor 0x11B
 static inline uint8_t multiplicar_por_02(uint8_t b) {
-  return (uint8_t)((b & 0x80) ? ((b << 1) ^ 0x1B) : (b << 1));
+  return (uint8_t)((b << 1) ^ (((b >> 7) & 1) * 0x1B));
 }
 
 // Multiplicações da matriz InvMixColumns derivadas puramente com xtime e XOR:
